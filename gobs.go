@@ -1,0 +1,133 @@
+package gobs
+
+import (
+	"fmt"
+	"sync"
+)
+
+// Job is a unit of work that returns a non-nil error in case of failure
+type Job func() error
+
+// Status tracks the completion of a Job
+type Status struct {
+	done chan struct{}
+	err  error
+}
+
+// Wait blocks until the associated Job has terminated. It returns the error
+// returned by the Job
+func (s *Status) Wait() error {
+	<-s.done
+	return s.err
+}
+
+// Pool is a worker pool that accepts a bounded number of Jobs
+type Pool struct {
+	concurrency int
+	jobs        chan struct{}
+}
+
+// Stop blocks until all submitted jobs have completed.
+// Submitting a new Job to the Pool once Stop has been called will deadlock and/or panic.
+// Calling Stop more than once will deadlock and/or panic
+func (p *Pool) Stop() {
+	//aquire all job slots (i.e. make sure none are occupied by a running job)
+	for i := 0; i < p.concurrency; i++ {
+		p.jobs <- struct{}{}
+	}
+	close(p.jobs)
+	for i := 0; i < p.concurrency; i++ {
+		<-p.jobs
+	}
+}
+
+func NewPool(concurrency int) *Pool {
+	if concurrency < 1 {
+		panic("concurrency must be >= 1")
+	}
+	p := &Pool{
+		concurrency: concurrency,
+	}
+	p.jobs = make(chan struct{}, concurrency)
+	return p
+}
+
+func (p *Pool) Submit(job Job) *Status {
+	p.jobs <- struct{}{}
+	s := &Status{}
+	s.done = make(chan struct{})
+	go func() {
+		s.err = job()
+		close(s.done)
+		<-p.jobs
+	}()
+	return s
+}
+
+type multiErr struct {
+	mu   sync.Mutex
+	errs []error
+}
+
+var _ MultiError = &multiErr{} // static type check
+
+func (me *multiErr) add(err error) {
+	if err == nil {
+		return
+	}
+	me.mu.Lock()
+	me.errs = append(me.errs, err)
+	me.mu.Unlock()
+}
+
+func (me *multiErr) Error() string {
+	errstring := me.errs[0].Error()
+	if len(me.errs) > 1 {
+		errstring += fmt.Sprintf(" (and %d more errors)", len(me.errs)-1)
+	}
+	return errstring
+}
+
+func (me *multiErr) Errors() []error {
+	return me.errs
+}
+
+type MultiError interface {
+	error
+	Errors() []error
+}
+
+type Batch struct {
+	p  *Pool
+	wg sync.WaitGroup
+	me *multiErr
+}
+
+func (p *Pool) Batch() *Batch {
+	b := &Batch{
+		p:  p,
+		me: &multiErr{},
+	}
+	return b
+}
+
+func (b *Batch) Submit(job Job) {
+	st := b.p.Submit(job)
+	b.wg.Add(1)
+	go func() {
+		b.me.add(st.Wait())
+		b.wg.Done()
+	}()
+}
+
+// Wait blocks until all job submitted to the batch have completed. Once Wait
+// has been called, no further jobs should be submitted to the batch.
+//
+// Wait returns a MultiError that can be used to inspect individual job errors
+func (b *Batch) Wait() error {
+	b.wg.Wait()
+	if len(b.me.errs) > 0 {
+		return b.me
+	}
+	return nil
+}
