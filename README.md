@@ -5,3 +5,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/tbonfort/gobs/badge.svg?branch=main)](https://coveralls.io/github/tbonfort/gobs?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tbonfort/gobs)](https://goreportcard.com/report/github.com/tbonfort/gobs)
 
+Package gobs implements a simple job queue where each individual job is run
+concurrently in its own goroutine while ensuring that no more than a given number
+of jobs can be ran at a time. It provides methods to ensure all jobs have been
+completed, and to capture errors.
