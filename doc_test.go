@@ -23,14 +23,14 @@ func ExamplePool_Submit() {
 	pool := NewPool(2)
 	status := pool.Submit(func() error {
 		time.Sleep(10 * time.Millisecond)
-		return fmt.Errorf("an error occured")
+		return fmt.Errorf("an error occurred")
 	})
 
 	//do some other stuff while waiting for job to complete
 
 	err := status.Wait()
 	if err != nil {
-		//err.Error() == "an error occured"
+		//err.Error() == "an error occurred"
 	}
 }
 
@@ -43,11 +43,11 @@ func ExamplePool_Batch() {
 	batch := pool.Batch()
 	batch.Submit(func() error {
 		time.Sleep(10 * time.Millisecond)
-		return fmt.Errorf("an error 1 occured")
+		return fmt.Errorf("an error 1 occurred")
 	})
 	batch.Submit(func() error {
 		time.Sleep(10 * time.Millisecond)
-		return fmt.Errorf("an error 2 occured")
+		return fmt.Errorf("an error 2 occurred")
 	})
 	batch.Submit(func() error {
 		time.Sleep(10 * time.Millisecond)
@@ -55,7 +55,7 @@ func ExamplePool_Batch() {
 	})
 	err := batch.Wait()
 	if err != nil {
-		//err.Error() is "an error 1 occured (and 1 other errors)" or "an error 2 occured (and 1 other errors)"
+		//err.Error() is "an error 1 occurred (and 1 other errors)" or "an error 2 occurred (and 1 other errors)"
 		//err.(MultiError).Errors() is a slice of 2 errors
 	}
 

@@ -100,7 +100,7 @@ func (me *multiErr) Error() string {
 	return errstring
 }
 
-// Errors returns the list of all errors that occured in a batch
+// Errors returns the list of all errors that occurred in a batch
 func (me *multiErr) Errors() []error {
 	return me.errs
 }
