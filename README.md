@@ -60,4 +60,46 @@ if err!=nil {
 
 ```
 
+## Caveat
+
+Standard care concerning [closures used with goroutines](https://golang.org/doc/faq#closures_and_goroutines)
+should be taken. For example, consider the following code:
+```go
+pool := gobs.NewPool(10)
+mu := sync.Mutex{}
+ret := []int{}
+for i := 0; i < 10; i++ {
+    pool.Submit(func() error {
+        mu.Lock()
+        ret = append(ret, i)
+        mu.Unlock()
+        return nil
+    })
+}
+pool.Stop()
+sort.Slice(ret, func(i, j int) bool { return ret[i] < ret[j] })
+fmt.Println(ret)
+```
+While the expected output would be `[0 1 2 3 4 5 6 7 8 9]` this program actually prints
+an array containing numbers between 0 and 10, e.g. `[10 10 10 10 10 10 10 10 10 10]`!
+
+To avoid this you should make sure that the loop index cannot be re-used from one iteration
+to another by rewriting your code as:
+```go
+pool := gobs.NewPool(10)
+mu := sync.Mutex{}
+ret := []int{}
+for i := 0; i < 10; i++ {
+    idx := i
+    pool.Submit(func() error {
+        mu.Lock()
+        ret = append(ret, idx)
+        mu.Unlock()
+        return nil
+    })
+}
+pool.Stop()
+sort.Slice(ret, func(i, j int) bool { return ret[i] < ret[j] })
+fmt.Println(ret)
+```
 
